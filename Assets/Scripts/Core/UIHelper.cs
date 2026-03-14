@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using UnityEngine.Events;
 
@@ -15,6 +16,16 @@ namespace MatchThree.Core
                 if (_font == null)
                     _font = Font.CreateDynamicFontFromOSFont("Arial", 32);
                 return _font;
+            }
+        }
+
+        public static void EnsureEventSystem()
+        {
+            if (Object.FindAnyObjectByType<EventSystem>() == null)
+            {
+                var go = new GameObject("EventSystem");
+                go.AddComponent<EventSystem>();
+                go.AddComponent<StandaloneInputModule>();
             }
         }
 

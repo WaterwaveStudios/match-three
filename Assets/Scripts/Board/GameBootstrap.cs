@@ -13,6 +13,9 @@ namespace MatchThree.Board
 
             try
             {
+                // Ensure EventSystem exists for UI buttons
+                UIHelper.EnsureEventSystem();
+
                 // Ensure camera exists
                 var cam = Camera.main;
                 if (cam == null)
