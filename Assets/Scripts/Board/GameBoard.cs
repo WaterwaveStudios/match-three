@@ -12,8 +12,8 @@ namespace MatchThree.Board
     public class GameBoard : MonoBehaviour
     {
         [Header("Board Settings")]
-        [SerializeField] private int _rows = 8;
-        [SerializeField] private int _cols = 8;
+        [SerializeField] private int _rows = 4;
+        [SerializeField] private int _cols = 4;
         [SerializeField] private float _tileSize = 1.1f;
 
         [Header("Tile Setup")]
@@ -22,7 +22,7 @@ namespace MatchThree.Board
 
         [Header("Animation")]
         [SerializeField] private float _swapDuration = 0.2f;
-        [SerializeField] private float _fallDuration = 0.15f;
+        [SerializeField] private float _fallDuration = 0.3f;
         [SerializeField] private float _clearDelay = 0.15f;
 
         private Tile[,] _grid;
@@ -52,6 +52,7 @@ namespace MatchThree.Board
         private void Update()
         {
             if (_isProcessing) return;
+            if (GameManager.Instance != null && GameManager.Instance.State != GameState.Playing) return;
 
             if (UnityEngine.Input.GetMouseButtonDown(0))
             {

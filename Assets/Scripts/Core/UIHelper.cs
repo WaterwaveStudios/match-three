@@ -52,6 +52,7 @@ namespace MatchThree.Core
             text.alignment = anchor;
             text.font = DefaultFont;
             text.horizontalOverflow = HorizontalWrapMode.Overflow;
+            text.raycastTarget = false;
 
             return text;
         }

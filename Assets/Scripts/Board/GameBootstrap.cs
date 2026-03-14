@@ -23,11 +23,11 @@ namespace MatchThree.Board
                     var camGo = new GameObject("Main Camera");
                     camGo.tag = "MainCamera";
                     cam = camGo.AddComponent<Camera>();
-                    cam.orthographic = true;
-                    cam.clearFlags = CameraClearFlags.SolidColor;
                 }
+                cam.orthographic = true;
+                cam.clearFlags = CameraClearFlags.SolidColor;
                 cam.orthographicSize = 6f;
-                cam.backgroundColor = new Color(0.08f, 0.08f, 0.14f);
+                cam.backgroundColor = Color.black;
                 cam.transform.position = new Vector3(0, 0, -10f);
 
                 // Create tile prefab
