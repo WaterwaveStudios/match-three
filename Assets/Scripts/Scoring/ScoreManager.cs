@@ -20,7 +20,7 @@ namespace MatchThree.Scoring
             ChainMultiplier++;
         }
 
-        public void AddMatchScore(int matchSize)
+        public int CalculatePoints(int matchSize)
         {
             int basePoints;
             if (matchSize <= 3)
@@ -30,8 +30,12 @@ namespace MatchThree.Scoring
             else
                 basePoints = 300;
 
-            int multiplier = Math.Max(1, ChainMultiplier);
-            int points = basePoints * multiplier;
+            return basePoints * Math.Max(1, ChainMultiplier);
+        }
+
+        public void AddMatchScore(int matchSize)
+        {
+            int points = CalculatePoints(matchSize);
             Score += points;
             OnScoreChanged?.Invoke(Score);
         }

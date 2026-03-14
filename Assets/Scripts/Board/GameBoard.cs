@@ -4,6 +4,7 @@ using UnityEngine;
 using MatchThree.Tiles;
 using MatchThree.Matching;
 using MatchThree.Scoring;
+using MatchThree.UI;
 
 namespace MatchThree.Board
 {
@@ -269,12 +270,15 @@ namespace MatchThree.Board
                 if (matchGroups.Count == 0) break;
 
                 _scoreManager.IncrementChain();
-                _scoreManager.AddMatchScores(matchGroups);
 
-                // Collect all matched positions
+                // Score each group and spawn popups
                 var allMatched = new HashSet<(int row, int col)>();
                 foreach (var group in matchGroups)
                 {
+                    int points = _scoreManager.CalculatePoints(group.Count);
+                    _scoreManager.AddMatchScore(group.Count);
+                    SpawnScorePopup(group, points);
+
                     foreach (var pos in group)
                     {
                         allMatched.Add(pos);
@@ -405,6 +409,24 @@ namespace MatchThree.Board
         private Vector3 GridToWorld(int row, int col)
         {
             return new Vector3(col * _tileSize, row * _tileSize, 0f);
+        }
+
+        private void SpawnScorePopup(HashSet<(int row, int col)> group, int points)
+        {
+            // Find centre of the match group
+            float sumX = 0f, sumY = 0f;
+            foreach (var (row, col) in group)
+            {
+                var world = GridToWorld(row, col);
+                sumX += world.x;
+                sumY += world.y;
+            }
+            var centre = new Vector3(sumX / group.Count, sumY / group.Count, -1f);
+
+            var go = new GameObject("ScorePopup");
+            go.transform.position = centre;
+            var popup = go.AddComponent<ScorePopup>();
+            popup.Init(points);
         }
 
         #endregion
