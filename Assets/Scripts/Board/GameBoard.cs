@@ -5,6 +5,7 @@ using MatchThree.Tiles;
 using MatchThree.Matching;
 using MatchThree.Scoring;
 using MatchThree.UI;
+using MatchThree.Core;
 
 namespace MatchThree.Board
 {
@@ -43,6 +44,9 @@ namespace MatchThree.Board
             _grid = new Tile[_rows, _cols];
             FillBoard();
             CentreCamera();
+
+            if (GameManager.Instance != null)
+                GameManager.Instance.SubscribeToBoard(this);
         }
 
         private void Update()
