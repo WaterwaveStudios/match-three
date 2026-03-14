@@ -113,6 +113,7 @@ namespace MatchThree.Board
             }
 
             GameObject go = Instantiate(_tilePrefab, pos, Quaternion.identity, transform);
+            go.SetActive(true);
             go.name = $"Tile_{row}_{col}";
             Tile tile = go.GetComponent<Tile>();
             tile.Init(data, row, col);
