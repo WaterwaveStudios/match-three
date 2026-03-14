@@ -265,5 +265,72 @@ namespace MatchThree.Tests
             Assert.IsTrue(matches[0].Contains((2, 0)));
             Assert.IsTrue(matches[0].Contains((3, 0)));
         }
+
+        // HasAnyValidMove tests
+
+        [Test]
+        public void HasAnyValidMove_ReturnsTrueWhenMoveExists()
+        {
+            // Swapping (0,2)S with (1,2)C completes row 0: C,C,C
+            var layout = new TileType[,]
+            {
+                { TileType.Circle, TileType.Circle, TileType.Square },
+                { TileType.Circle, TileType.Square, TileType.Circle },
+                { TileType.Square, TileType.Circle, TileType.Square },
+            };
+
+            var grid = BuildGrid(layout);
+            Assert.IsTrue(MatchFinder.HasAnyValidMove(grid, 3, 3));
+        }
+
+        [Test]
+        public void HasAnyValidMove_ReturnsFalseWhenDeadlocked()
+        {
+            // Rotating 3-type pattern — no swap creates a 3-match
+            var layout = new TileType[,]
+            {
+                { TileType.Circle,  TileType.Square,  TileType.Diamond, TileType.Circle  },
+                { TileType.Square,  TileType.Diamond, TileType.Circle,  TileType.Square  },
+                { TileType.Diamond, TileType.Circle,  TileType.Square,  TileType.Diamond },
+                { TileType.Circle,  TileType.Square,  TileType.Diamond, TileType.Circle  },
+            };
+
+            var grid = BuildGrid(layout);
+            Assert.IsFalse(MatchFinder.HasAnyValidMove(grid, 4, 4));
+        }
+
+        [Test]
+        public void HasAnyValidMove_HandlesNullCells()
+        {
+            var grid = new Tile[3, 3];
+            // All nulls — no valid moves
+            Assert.IsFalse(MatchFinder.HasAnyValidMove(grid, 3, 3));
+        }
+
+        [Test]
+        public void HasAnyValidMove_DoesNotMutateGrid()
+        {
+            var layout = new TileType[,]
+            {
+                { TileType.Circle, TileType.Circle, TileType.Square },
+                { TileType.Circle, TileType.Square, TileType.Circle },
+                { TileType.Square, TileType.Circle, TileType.Square },
+            };
+
+            var grid = BuildGrid(layout);
+
+            // Record original positions
+            var original = new TileType[3, 3];
+            for (int r = 0; r < 3; r++)
+                for (int c = 0; c < 3; c++)
+                    original[r, c] = grid[r, c].Type;
+
+            MatchFinder.HasAnyValidMove(grid, 3, 3);
+
+            // Grid should be unchanged
+            for (int r = 0; r < 3; r++)
+                for (int c = 0; c < 3; c++)
+                    Assert.AreEqual(original[r, c], grid[r, c].Type);
+        }
     }
 }

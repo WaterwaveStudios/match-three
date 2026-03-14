@@ -256,6 +256,43 @@ namespace MatchThree.Tests
             Assert.AreEqual(1, _upgrades.BonusRoundTime);
         }
 
+        [Test]
+        public void CascadeChance_DefaultsToZero()
+        {
+            Assert.AreEqual(0, _upgrades.CascadeChance);
+        }
+
+        [Test]
+        public void CascadeChance_Increases20PerLevel()
+        {
+            _wallet.AddFunds(10000);
+            _upgrades.Purchase("score_boost", _wallet);
+            _upgrades.Purchase("cascade_chance", _wallet);
+            Assert.AreEqual(20, _upgrades.CascadeChance);
+            _upgrades.Purchase("cascade_chance", _wallet);
+            Assert.AreEqual(40, _upgrades.CascadeChance);
+        }
+
+        [Test]
+        public void CascadeChance_IsVisibleWhenScoreBoostPurchased()
+        {
+            Assert.IsFalse(_upgrades.IsVisible("cascade_chance"));
+            _wallet.AddFunds(100);
+            _upgrades.Purchase("score_boost", _wallet);
+            Assert.IsTrue(_upgrades.IsVisible("cascade_chance"));
+        }
+
+        [Test]
+        public void CascadeChance_MaxesAt100()
+        {
+            _wallet.AddFunds(10000);
+            _upgrades.Purchase("score_boost", _wallet);
+            for (int i = 0; i < 5; i++)
+                _upgrades.Purchase("cascade_chance", _wallet);
+            Assert.AreEqual(100, _upgrades.CascadeChance);
+            Assert.IsTrue(_upgrades.IsMaxed("cascade_chance"));
+        }
+
         // Persistence
 
         [Test]

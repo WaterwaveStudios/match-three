@@ -38,6 +38,8 @@ namespace MatchThree.Scoring
                 new[] { 15, 30, 60, 120 }, "score_boost"),
             new UpgradeNode("longer_round", "Longer Round", "+1s round duration per level",
                 new[] { 20, 40, 80 }, "score_boost"),
+            new UpgradeNode("cascade_chance", "Cascade Chance", "+20% cascade chance per level",
+                new[] { 15, 30, 60, 120, 240 }, "score_boost"),
         };
 
         private readonly Dictionary<string, int> _levels = new Dictionary<string, int>();
@@ -95,6 +97,7 @@ namespace MatchThree.Scoring
         public int ExtraRows => GetLevel("extra_row");
         public int ExtraCols => GetLevel("extra_col");
         public int BonusRoundTime => GetLevel("longer_round");
+        public int CascadeChance => GetLevel("cascade_chance") * 20;
 
         public void Save()
         {

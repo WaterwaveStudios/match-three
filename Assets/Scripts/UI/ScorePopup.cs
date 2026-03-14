@@ -25,10 +25,23 @@ namespace MatchThree.UI
             _text.anchor = TextAnchor.MiddleCenter;
             _text.alignment = TextAlignment.Center;
 
-            // Ensure it renders on top of tiles
-            var mr = GetComponent<MeshRenderer>();
-            if (mr != null)
-                mr.sortingOrder = 100;
+            var customFont = Resources.Load<Font>("Fonts/monogram-extended");
+            if (customFont != null)
+            {
+                _text.font = customFont;
+                var mr = GetComponent<MeshRenderer>();
+                if (mr != null)
+                {
+                    mr.sortingOrder = 100;
+                    mr.material = customFont.material;
+                }
+            }
+            else
+            {
+                var mr = GetComponent<MeshRenderer>();
+                if (mr != null)
+                    mr.sortingOrder = 100;
+            }
 
             _startColour = _text.color;
         }

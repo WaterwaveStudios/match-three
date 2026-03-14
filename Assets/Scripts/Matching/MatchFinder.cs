@@ -75,5 +75,42 @@ namespace MatchThree.Matching
         {
             return FindAllMatches(grid, rows, cols).Count > 0;
         }
+
+        public static bool HasAnyValidMove(Tile[,] grid, int rows, int cols)
+        {
+            for (int r = 0; r < rows; r++)
+            {
+                for (int c = 0; c < cols; c++)
+                {
+                    if (grid[r, c] == null) continue;
+
+                    // Try swap right
+                    if (c + 1 < cols && grid[r, c + 1] != null)
+                    {
+                        SwapCells(grid, r, c, r, c + 1);
+                        bool hasMatch = HasAnyMatch(grid, rows, cols);
+                        SwapCells(grid, r, c, r, c + 1);
+                        if (hasMatch) return true;
+                    }
+
+                    // Try swap up
+                    if (r + 1 < rows && grid[r + 1, c] != null)
+                    {
+                        SwapCells(grid, r, c, r + 1, c);
+                        bool hasMatch = HasAnyMatch(grid, rows, cols);
+                        SwapCells(grid, r, c, r + 1, c);
+                        if (hasMatch) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        private static void SwapCells(Tile[,] grid, int r1, int c1, int r2, int c2)
+        {
+            var temp = grid[r1, c1];
+            grid[r1, c1] = grid[r2, c2];
+            grid[r2, c2] = temp;
+        }
     }
 }

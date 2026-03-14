@@ -49,10 +49,11 @@ namespace MatchThree.Core
         // Node positions for the upgrade tree UI
         private static readonly Dictionary<string, Vector2> NodePositions = new Dictionary<string, Vector2>
         {
-            { "score_boost",  new Vector2(0, 50) },
-            { "extra_row",    new Vector2(-160, -80) },
-            { "extra_col",    new Vector2(0, -80) },
-            { "longer_round", new Vector2(160, -80) },
+            { "score_boost",    new Vector2(0, 60) },
+            { "extra_row",     new Vector2(-195, -70) },
+            { "extra_col",     new Vector2(-65, -70) },
+            { "longer_round",  new Vector2(65, -70) },
+            { "cascade_chance", new Vector2(195, -70) },
         };
 
         public void Init(GameObject tilePrefab, TileData[] tileDataSet)
@@ -125,13 +126,13 @@ namespace MatchThree.Core
 
             float roundDuration = DefaultRoundDuration + _upgradeManager.BonusRoundTime;
             _roundTimer = new RoundTimer(roundDuration);
-            _roundTimer.OnExpired += EndRound;
+            _roundTimer.OnExpired += () => EndRound();
 
             CreateHUD();
             CreateBoard();
         }
 
-        public void EndRound()
+        public void EndRound(string reason = null)
         {
             if (State != GameState.Playing) return;
             State = GameState.RoundEnd;
@@ -141,7 +142,7 @@ namespace MatchThree.Core
             _wallet.Save();
 
             HideHUD();
-            CreateRoundEndUI(roundScore);
+            CreateRoundEndUI(roundScore, reason);
         }
 
         public void ShowShop()
@@ -165,6 +166,7 @@ namespace MatchThree.Core
             SetField(_board, "_tileDataSet", _tileDataSet);
             SetField(_board, "_rows", BaseRows + _upgradeManager.ExtraRows);
             SetField(_board, "_cols", BaseCols + _upgradeManager.ExtraCols);
+            SetField(_board, "_cascadeChance", _upgradeManager.CascadeChance);
         }
 
         private void DestroyBoard()
@@ -315,7 +317,7 @@ namespace MatchThree.Core
 
         #region Round End UI
 
-        private void CreateRoundEndUI(int roundScore)
+        private void CreateRoundEndUI(int roundScore, string reason = null)
         {
             var canvas = UIHelper.CreateCanvas("RoundEndCanvas");
             canvas.sortingOrder = 20;
@@ -331,8 +333,9 @@ namespace MatchThree.Core
             overlayRect.anchorMax = Vector2.one;
             overlayRect.sizeDelta = Vector2.zero;
 
-            // Round Complete title
-            var title = UIHelper.CreateText(canvas.transform, "Round Complete!", 56, Color.white);
+            // Round end title
+            string titleText = reason ?? "Round Complete!";
+            var title = UIHelper.CreateText(canvas.transform, titleText, 56, Color.white);
             UIHelper.SetRect(title.GetComponent<RectTransform>(),
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0, 130), new Vector2(500, 80));

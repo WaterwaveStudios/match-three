@@ -31,6 +31,7 @@ namespace MatchThree.Board
         private bool _isProcessing;
         private ScoreManager _scoreManager;
         private Camera _mainCamera;
+        private int _cascadeChance;
 
         public ScoreManager ScoreManager => _scoreManager;
 
@@ -110,9 +111,14 @@ namespace MatchThree.Board
             }
         }
 
-        private Tile SpawnTileAt(int row, int col, bool aboveBoard)
+        private Tile SpawnTileAt(int row, int col, bool aboveBoard, bool allowCascade = false)
         {
-            TileData data = GetSafeTileData(row, col);
+            TileData data;
+            if (allowCascade)
+                data = _tileDataSet[Random.Range(0, _tileDataSet.Length)];
+            else
+                data = GetSafeTileData(row, col);
+
             Vector3 pos = GridToWorld(row, col);
             if (aboveBoard)
             {
@@ -130,33 +136,42 @@ namespace MatchThree.Board
 
         private TileData GetSafeTileData(int row, int col)
         {
-            // Simple approach: pick random, but avoid creating immediate 3-matches during fill
             var available = new List<TileData>(_tileDataSet);
 
-            // Check left
-            if (col >= 2
-                && _grid[row, col - 1] != null
-                && _grid[row, col - 2] != null
-                && _grid[row, col - 1].Type == _grid[row, col - 2].Type)
-            {
-                TileType avoid = _grid[row, col - 1].Type;
-                available.RemoveAll(d => d.Type == avoid);
-            }
+            // Check left pair
+            if (col >= 2 && SameTypeAt(row, col - 1, row, col - 2))
+                available.RemoveAll(d => d.Type == _grid[row, col - 1].Type);
 
-            // Check below
-            if (row >= 2
-                && _grid[row - 1, col] != null
-                && _grid[row - 2, col] != null
-                && _grid[row - 1, col].Type == _grid[row - 2, col].Type)
-            {
-                TileType avoid = _grid[row - 1, col].Type;
-                available.RemoveAll(d => d.Type == avoid);
-            }
+            // Check right pair
+            if (col + 2 < _cols && SameTypeAt(row, col + 1, row, col + 2))
+                available.RemoveAll(d => d.Type == _grid[row, col + 1].Type);
+
+            // Check left-right sandwich
+            if (col >= 1 && col + 1 < _cols && SameTypeAt(row, col - 1, row, col + 1))
+                available.RemoveAll(d => d.Type == _grid[row, col - 1].Type);
+
+            // Check below pair
+            if (row >= 2 && SameTypeAt(row - 1, col, row - 2, col))
+                available.RemoveAll(d => d.Type == _grid[row - 1, col].Type);
+
+            // Check above pair
+            if (row + 2 < _rows && SameTypeAt(row + 1, col, row + 2, col))
+                available.RemoveAll(d => d.Type == _grid[row + 1, col].Type);
+
+            // Check below-above sandwich
+            if (row >= 1 && row + 1 < _rows && SameTypeAt(row - 1, col, row + 1, col))
+                available.RemoveAll(d => d.Type == _grid[row - 1, col].Type);
 
             if (available.Count == 0)
                 available = new List<TileData>(_tileDataSet);
 
             return available[Random.Range(0, available.Count)];
+        }
+
+        private bool SameTypeAt(int r1, int c1, int r2, int c2)
+        {
+            return _grid[r1, c1] != null && _grid[r2, c2] != null
+                && _grid[r1, c1].Type == _grid[r2, c2].Type;
         }
 
         #endregion
@@ -225,6 +240,13 @@ namespace MatchThree.Board
                 // Invalid swap — swap back
                 yield return StartCoroutine(AnimateSwap(a, b));
                 SwapInGrid(a, b);
+            }
+
+            // Check for deadlock after board settles
+            if (!MatchFinder.HasAnyValidMove(_grid, _rows, _cols))
+            {
+                if (GameManager.Instance != null)
+                    GameManager.Instance.EndRound("Deadlocked!");
             }
 
             _isProcessing = false;
@@ -350,7 +372,8 @@ namespace MatchThree.Board
                 {
                     if (_grid[r, c] == null)
                     {
-                        Tile tile = SpawnTileAt(r, c, true);
+                        bool allowCascade = _cascadeChance > 0 && Random.Range(0, 100) < _cascadeChance;
+                        Tile tile = SpawnTileAt(r, c, true, allowCascade);
                         newTiles.Add(tile);
                     }
                 }

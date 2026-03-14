@@ -15,7 +15,11 @@ namespace MatchThree.Core
             get
             {
                 if (_font == null)
-                    _font = Font.CreateDynamicFontFromOSFont("Arial", 32);
+                {
+                    _font = Resources.Load<Font>("Fonts/monogram-extended");
+                    if (_font == null)
+                        _font = Font.CreateDynamicFontFromOSFont("Arial", 32);
+                }
                 return _font;
             }
         }
