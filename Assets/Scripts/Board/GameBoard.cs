@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using MatchThree.Tiles;
 using MatchThree.Matching;
 using MatchThree.Scoring;
@@ -54,7 +55,7 @@ namespace MatchThree.Board
             if (_isProcessing) return;
             if (GameManager.Instance != null && GameManager.Instance.State != GameState.Playing) return;
 
-            if (UnityEngine.Input.GetMouseButtonDown(0))
+            if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
             {
                 HandleClick();
             }
@@ -164,7 +165,7 @@ namespace MatchThree.Board
 
         private void HandleClick()
         {
-            Vector2 worldPos = _mainCamera.ScreenToWorldPoint(UnityEngine.Input.mousePosition);
+            Vector2 worldPos = _mainCamera.ScreenToWorldPoint(Mouse.current.position.ReadValue());
             int col = Mathf.RoundToInt(worldPos.x / _tileSize);
             int row = Mathf.RoundToInt(worldPos.y / _tileSize);
 

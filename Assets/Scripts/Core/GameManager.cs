@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 using MatchThree.Board;
 using MatchThree.Tiles;
 using MatchThree.Scoring;
@@ -16,6 +19,8 @@ namespace MatchThree.Core
         public GameState State { get; private set; }
 
         private const float DefaultRoundDuration = 20f;
+        private const int BaseRows = 4;
+        private const int BaseCols = 4;
 
         private GameObject _tilePrefab;
         private TileData[] _tileDataSet;
@@ -29,8 +34,26 @@ namespace MatchThree.Core
 
         private RoundTimer _roundTimer;
         private WalletManager _wallet;
+        private UpgradeManager _upgradeManager;
+
+        // Tooltip state
+        private GameObject _tooltipRoot;
+        private Text _tooltipText;
+        private RectTransform _tooltipRect;
+        private RectTransform _shopCanvasRect;
+        private bool _tooltipActive;
 
         public WalletManager Wallet => _wallet;
+        public UpgradeManager Upgrades => _upgradeManager;
+
+        // Node positions for the upgrade tree UI
+        private static readonly Dictionary<string, Vector2> NodePositions = new Dictionary<string, Vector2>
+        {
+            { "score_boost",  new Vector2(0, 50) },
+            { "extra_row",    new Vector2(-160, -80) },
+            { "extra_col",    new Vector2(0, -80) },
+            { "longer_round", new Vector2(160, -80) },
+        };
 
         public void Init(GameObject tilePrefab, TileData[] tileDataSet)
         {
@@ -49,6 +72,9 @@ namespace MatchThree.Core
 
             _wallet = new WalletManager();
             _wallet.Load();
+
+            _upgradeManager = new UpgradeManager();
+            _upgradeManager.Load();
         }
 
         private void Start()
@@ -60,7 +86,7 @@ namespace MatchThree.Core
         {
             if (State == GameState.Playing)
             {
-                if (Input.GetKeyDown(KeyCode.Escape))
+                if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
                 {
                     EndRound();
                     return;
@@ -68,6 +94,14 @@ namespace MatchThree.Core
 
                 _roundTimer.Tick(Time.deltaTime);
                 UpdateTimerDisplay();
+            }
+
+            if (State == GameState.Shop && _tooltipActive && _tooltipRect != null && _shopCanvasRect != null)
+            {
+                Vector2 localPoint;
+                RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                    _shopCanvasRect, Mouse.current.position.ReadValue(), null, out localPoint);
+                _tooltipRect.anchoredPosition = localPoint + new Vector2(0, 50);
             }
         }
 
@@ -89,7 +123,8 @@ namespace MatchThree.Core
             HideMenu();
             HideShop();
 
-            _roundTimer = new RoundTimer(DefaultRoundDuration);
+            float roundDuration = DefaultRoundDuration + _upgradeManager.BonusRoundTime;
+            _roundTimer = new RoundTimer(roundDuration);
             _roundTimer.OnExpired += EndRound;
 
             CreateHUD();
@@ -128,6 +163,8 @@ namespace MatchThree.Core
 
             SetField(_board, "_tilePrefab", _tilePrefab);
             SetField(_board, "_tileDataSet", _tileDataSet);
+            SetField(_board, "_rows", BaseRows + _upgradeManager.ExtraRows);
+            SetField(_board, "_cols", BaseCols + _upgradeManager.ExtraCols);
         }
 
         private void DestroyBoard()
@@ -219,8 +256,10 @@ namespace MatchThree.Core
                 new Vector2(20, -20), new Vector2(300, 60));
             scoreRect.pivot = new Vector2(0, 1);
 
+            float roundDuration = DefaultRoundDuration + _upgradeManager.BonusRoundTime;
+
             // Timer (top-centre)
-            _timerText = UIHelper.CreateText(canvas.transform, FormatTime(DefaultRoundDuration), 42, Color.white);
+            _timerText = UIHelper.CreateText(canvas.transform, FormatTime(roundDuration), 42, Color.white);
             var timerRect = _timerText.GetComponent<RectTransform>();
             UIHelper.SetRect(timerRect,
                 new Vector2(0.5f, 1), new Vector2(0.5f, 1),
@@ -341,6 +380,7 @@ namespace MatchThree.Core
         {
             var canvas = UIHelper.CreateCanvas("ShopCanvas");
             _shopRoot = canvas.gameObject;
+            _shopCanvasRect = canvas.GetComponent<RectTransform>();
 
             // Background
             var bg = new GameObject("Background");
@@ -353,35 +393,218 @@ namespace MatchThree.Core
             bgRect.sizeDelta = Vector2.zero;
 
             // Shop title
-            var title = UIHelper.CreateText(canvas.transform, "Shop", 56, Color.white);
+            var title = UIHelper.CreateText(canvas.transform, "Upgrades", 56, Color.white);
             UIHelper.SetRect(title.GetComponent<RectTransform>(),
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0, 160), new Vector2(400, 80));
+                new Vector2(0, 220), new Vector2(400, 80));
 
             // Wallet display
             var walletColour = new Color(1f, 0.85f, 0.3f);
             var walletText = UIHelper.CreateText(canvas.transform, $"Wallet: {_wallet.Balance}", 36, walletColour);
             UIHelper.SetRect(walletText.GetComponent<RectTransform>(),
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0, 80), new Vector2(400, 50));
+                new Vector2(0, 150), new Vector2(400, 50));
 
-            // Coming soon placeholder
-            var placeholder = UIHelper.CreateText(canvas.transform, "Upgrades coming soon...", 24, new Color(0.5f, 0.5f, 0.6f));
-            UIHelper.SetRect(placeholder.GetComponent<RectTransform>(),
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0, 10), new Vector2(400, 40));
+            // Draw connecting lines first (behind nodes)
+            foreach (var node in UpgradeManager.Tree)
+            {
+                if (node.ParentId != null && _upgradeManager.IsVisible(node.Id))
+                {
+                    var parentPos = NodePositions[node.ParentId];
+                    var childPos = NodePositions[node.Id];
+                    CreateTreeLine(canvas.transform, parentPos, childPos);
+                }
+            }
+
+            // Draw upgrade nodes
+            foreach (var node in UpgradeManager.Tree)
+            {
+                if (_upgradeManager.IsVisible(node.Id))
+                {
+                    CreateUpgradeNode(canvas.transform, node);
+                }
+            }
+
+            // Create tooltip (on top of everything, starts hidden)
+            CreateTooltip(canvas.transform);
 
             // Continue button (starts next round)
             var continueBtn = UIHelper.CreateButton(canvas.transform, "Next Round", 32, StartRound);
             UIHelper.SetRect(continueBtn.GetComponent<RectTransform>(),
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0, -60), new Vector2(240, 55));
+                new Vector2(0, -180), new Vector2(240, 55));
 
             // Main menu button
             var menuBtn = UIHelper.CreateButton(canvas.transform, "Main Menu", 24, ShowMenu);
             UIHelper.SetRect(menuBtn.GetComponent<RectTransform>(),
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0, -130), new Vector2(200, 45));
+                new Vector2(0, -250), new Vector2(200, 45));
+        }
+
+        private void CreateUpgradeNode(Transform parent, UpgradeNode node)
+        {
+            var pos = NodePositions[node.Id];
+            int level = _upgradeManager.GetLevel(node.Id);
+            bool maxed = _upgradeManager.IsMaxed(node.Id);
+            int cost = _upgradeManager.GetCost(node.Id);
+            bool canAfford = cost > 0 && _wallet.CanAfford(cost);
+
+            // Node button
+            string label = maxed
+                ? $"{node.Name}\nMAX"
+                : level > 0
+                    ? $"{node.Name}\nLv {level}/{node.MaxLevel}"
+                    : node.Name;
+
+            var btn = UIHelper.CreateButton(parent, label, 18, () =>
+            {
+                if (_upgradeManager.Purchase(node.Id, _wallet))
+                {
+                    _upgradeManager.Save();
+                    _wallet.Save();
+                    _tooltipActive = false;
+                    HideShop();
+                    CreateShopUI();
+                }
+            });
+
+            UIHelper.SetRect(btn.GetComponent<RectTransform>(),
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                pos, new Vector2(140, 55));
+
+            // Color by state
+            var btnImage = btn.GetComponent<Image>();
+            if (maxed)
+            {
+                btnImage.color = new Color(0.5f, 0.4f, 0.15f); // gold
+            }
+            else if (level > 0)
+            {
+                btnImage.color = new Color(0.2f, 0.45f, 0.2f); // green
+            }
+            else if (canAfford)
+            {
+                btnImage.color = new Color(0.2f, 0.3f, 0.5f); // blue
+            }
+            else
+            {
+                btnImage.color = new Color(0.25f, 0.25f, 0.3f); // dark
+            }
+
+            if (maxed || !canAfford)
+            {
+                btn.interactable = maxed ? false : false;
+                if (!maxed && !canAfford)
+                {
+                    btn.interactable = false;
+                    var colours = btn.colors;
+                    colours.disabledColor = new Color(0.25f, 0.25f, 0.3f);
+                    btn.colors = colours;
+                }
+                if (maxed)
+                {
+                    btn.interactable = false;
+                    var colours = btn.colors;
+                    colours.disabledColor = new Color(0.5f, 0.4f, 0.15f);
+                    btn.colors = colours;
+                }
+            }
+
+            // Hover tooltip via EventTrigger
+            var trigger = btn.gameObject.AddComponent<EventTrigger>();
+
+            string tooltipContent = BuildTooltipText(node, level, maxed, cost);
+
+            var enterEntry = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
+            enterEntry.callback.AddListener((_) => ShowTooltip(tooltipContent));
+            trigger.triggers.Add(enterEntry);
+
+            var exitEntry = new EventTrigger.Entry { eventID = EventTriggerType.PointerExit };
+            exitEntry.callback.AddListener((_) => HideTooltip());
+            trigger.triggers.Add(exitEntry);
+        }
+
+        private string BuildTooltipText(UpgradeNode node, int level, bool maxed, int cost)
+        {
+            string text = $"{node.Name}\n{node.Description}\n";
+
+            if (maxed)
+                text += $"Level: {level}/{node.MaxLevel} (MAX)";
+            else if (level > 0)
+                text += $"Level: {level}/{node.MaxLevel}\nNext: {cost} pts";
+            else
+                text += $"Cost: {cost} pts";
+
+            return text;
+        }
+
+        private void CreateTooltip(Transform parent)
+        {
+            _tooltipRoot = new GameObject("Tooltip");
+            _tooltipRoot.transform.SetParent(parent, false);
+
+            var bgImage = _tooltipRoot.AddComponent<Image>();
+            bgImage.color = new Color(0.1f, 0.1f, 0.15f, 0.95f);
+            bgImage.raycastTarget = false;
+
+            _tooltipRect = bgImage.GetComponent<RectTransform>();
+            _tooltipRect.anchorMin = new Vector2(0.5f, 0.5f);
+            _tooltipRect.anchorMax = new Vector2(0.5f, 0.5f);
+            _tooltipRect.sizeDelta = new Vector2(220, 90);
+            _tooltipRect.pivot = new Vector2(0.5f, 0);
+
+            _tooltipText = UIHelper.CreateText(_tooltipRoot.transform, "", 16, Color.white);
+            _tooltipText.alignment = TextAnchor.MiddleCenter;
+            var textRect = _tooltipText.GetComponent<RectTransform>();
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.offsetMin = new Vector2(8, 4);
+            textRect.offsetMax = new Vector2(-8, -4);
+
+            _tooltipRoot.SetActive(false);
+            _tooltipActive = false;
+        }
+
+        private void ShowTooltip(string text)
+        {
+            if (_tooltipRoot == null) return;
+            _tooltipText.text = text;
+
+            // Size tooltip to content
+            int lineCount = text.Split('\n').Length;
+            _tooltipRect.sizeDelta = new Vector2(220, 20 + lineCount * 20);
+
+            _tooltipRoot.SetActive(true);
+            _tooltipActive = true;
+        }
+
+        private void HideTooltip()
+        {
+            if (_tooltipRoot == null) return;
+            _tooltipRoot.SetActive(false);
+            _tooltipActive = false;
+        }
+
+        private void CreateTreeLine(Transform parent, Vector2 from, Vector2 to)
+        {
+            var line = new GameObject("TreeLine");
+            line.transform.SetParent(parent, false);
+
+            var img = line.AddComponent<Image>();
+            img.color = new Color(0.35f, 0.35f, 0.45f);
+            img.raycastTarget = false;
+
+            var rect = img.GetComponent<RectTransform>();
+            Vector2 dir = to - from;
+            float distance = dir.magnitude;
+            float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(distance, 3f);
+            rect.anchoredPosition = (from + to) / 2f;
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.localRotation = Quaternion.Euler(0, 0, angle);
         }
 
         private void HideShop()
@@ -390,6 +613,11 @@ namespace MatchThree.Core
             {
                 Destroy(_shopRoot);
                 _shopRoot = null;
+                _tooltipRoot = null;
+                _tooltipText = null;
+                _tooltipRect = null;
+                _shopCanvasRect = null;
+                _tooltipActive = false;
             }
         }
 
@@ -408,6 +636,7 @@ namespace MatchThree.Core
         // Called by board via ScoreManager event
         internal void SubscribeToBoard(GameBoard board)
         {
+            board.ScoreManager.BonusPerTile = _upgradeManager.BonusPerTile;
             board.ScoreManager.OnScoreChanged += UpdateScore;
         }
 

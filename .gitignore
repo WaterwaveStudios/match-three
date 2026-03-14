@@ -21,5 +21,8 @@
 .DS_Store
 Thumbs.db
 
+# Mono crash reports
+mono_crash.*.json
+
 # Unity meta files for folders
 # (keep .meta files - Unity needs them)

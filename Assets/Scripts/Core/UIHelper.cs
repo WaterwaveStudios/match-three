@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 using UnityEngine.Events;
 
@@ -25,7 +26,7 @@ namespace MatchThree.Core
             {
                 var go = new GameObject("EventSystem");
                 go.AddComponent<EventSystem>();
-                go.AddComponent<StandaloneInputModule>();
+                go.AddComponent<InputSystemUIInputModule>();
             }
         }
 

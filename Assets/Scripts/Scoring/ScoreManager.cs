@@ -7,6 +7,7 @@ namespace MatchThree.Scoring
     {
         public int Score { get; private set; }
         public int ChainMultiplier { get; private set; }
+        public int BonusPerTile { get; set; }
 
         public event Action<int> OnScoreChanged;
 
@@ -22,15 +23,7 @@ namespace MatchThree.Scoring
 
         public int CalculatePoints(int matchSize)
         {
-            int basePoints;
-            if (matchSize <= 3)
-                basePoints = 50;
-            else if (matchSize == 4)
-                basePoints = 150;
-            else
-                basePoints = 300;
-
-            return basePoints * Math.Max(1, ChainMultiplier);
+            return matchSize * (1 + BonusPerTile) * Math.Max(1, ChainMultiplier);
         }
 
         public void AddMatchScore(int matchSize)

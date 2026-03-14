@@ -23,64 +23,64 @@ namespace MatchThree.Tests
         }
 
         [Test]
-        public void ThreeMatch_Awards50Points()
+        public void ThreeMatch_Awards3Points()
         {
             _score.IncrementChain();
             _score.AddMatchScore(3);
-            Assert.AreEqual(50, _score.Score);
+            Assert.AreEqual(3, _score.Score);
         }
 
         [Test]
-        public void FourMatch_Awards150Points()
+        public void FourMatch_Awards4Points()
         {
             _score.IncrementChain();
             _score.AddMatchScore(4);
-            Assert.AreEqual(150, _score.Score);
+            Assert.AreEqual(4, _score.Score);
         }
 
         [Test]
-        public void FiveMatch_Awards300Points()
+        public void FiveMatch_Awards5Points()
         {
             _score.IncrementChain();
             _score.AddMatchScore(5);
-            Assert.AreEqual(300, _score.Score);
+            Assert.AreEqual(5, _score.Score);
         }
 
         [Test]
-        public void SixMatch_Awards300Points_SameAsFive()
+        public void SixMatch_Awards6Points()
         {
             _score.IncrementChain();
             _score.AddMatchScore(6);
-            Assert.AreEqual(300, _score.Score);
+            Assert.AreEqual(6, _score.Score);
         }
 
         [Test]
         public void ChainMultiplier_IncreasesScore()
         {
-            // Chain 1: 50 points
+            // Chain 1: 3 * 1 = 3
             _score.IncrementChain();
             _score.AddMatchScore(3);
-            Assert.AreEqual(50, _score.Score);
+            Assert.AreEqual(3, _score.Score);
 
-            // Chain 2: 50 * 2 = 100
+            // Chain 2: 3 * 2 = 6
             _score.IncrementChain();
             _score.AddMatchScore(3);
-            Assert.AreEqual(150, _score.Score); // 50 + 100
+            Assert.AreEqual(9, _score.Score); // 3 + 6
         }
 
         [Test]
         public void ChainMultiplier_TripleChain()
         {
             _score.IncrementChain(); // chain = 1
-            _score.AddMatchScore(3); // 50 * 1 = 50
+            _score.AddMatchScore(3); // 3 * 1 = 3
 
             _score.IncrementChain(); // chain = 2
-            _score.AddMatchScore(3); // 50 * 2 = 100
+            _score.AddMatchScore(3); // 3 * 2 = 6
 
             _score.IncrementChain(); // chain = 3
-            _score.AddMatchScore(3); // 50 * 3 = 150
+            _score.AddMatchScore(3); // 3 * 3 = 9
 
-            Assert.AreEqual(300, _score.Score); // 50 + 100 + 150
+            Assert.AreEqual(18, _score.Score); // 3 + 6 + 9
         }
 
         [Test]
@@ -101,7 +101,7 @@ namespace MatchThree.Tests
             _score.AddMatchScore(3);
             _score.ResetChain();
 
-            Assert.AreEqual(50, _score.Score);
+            Assert.AreEqual(3, _score.Score);
         }
 
         [Test]
@@ -109,7 +109,7 @@ namespace MatchThree.Tests
         {
             // Chain multiplier is 0, but Math.Max(1, 0) = 1
             _score.AddMatchScore(3);
-            Assert.AreEqual(50, _score.Score);
+            Assert.AreEqual(3, _score.Score);
         }
 
         [Test]
@@ -119,12 +119,12 @@ namespace MatchThree.Tests
 
             var groups = new List<HashSet<(int row, int col)>>
             {
-                new HashSet<(int, int)> { (0, 0), (0, 1), (0, 2) },       // 3-match: 50
-                new HashSet<(int, int)> { (1, 0), (1, 1), (1, 2), (1, 3) } // 4-match: 150
+                new HashSet<(int, int)> { (0, 0), (0, 1), (0, 2) },       // 3-match: 3
+                new HashSet<(int, int)> { (1, 0), (1, 1), (1, 2), (1, 3) } // 4-match: 4
             };
 
             _score.AddMatchScores(groups);
-            Assert.AreEqual(200, _score.Score); // 50 + 150
+            Assert.AreEqual(7, _score.Score); // 3 + 4
         }
 
         [Test]
@@ -138,7 +138,7 @@ namespace MatchThree.Tests
             _score.AddMatchScore(3);
 
             Assert.AreEqual(1, fireCount);
-            Assert.AreEqual(50, lastScore);
+            Assert.AreEqual(3, lastScore);
         }
 
         [Test]
@@ -157,8 +157,8 @@ namespace MatchThree.Tests
             _score.AddMatchScores(groups);
 
             Assert.AreEqual(2, scores.Count);
-            Assert.AreEqual(50, scores[0]);
-            Assert.AreEqual(100, scores[1]);
+            Assert.AreEqual(3, scores[0]);
+            Assert.AreEqual(6, scores[1]);
         }
 
         [Test]
@@ -167,14 +167,45 @@ namespace MatchThree.Tests
             // First swap chain
             _score.ResetChain();
             _score.IncrementChain();
-            _score.AddMatchScore(3); // 50
+            _score.AddMatchScore(3); // 3
 
             // Second swap chain
             _score.ResetChain();
             _score.IncrementChain();
-            _score.AddMatchScore(4); // 150
+            _score.AddMatchScore(4); // 4
 
-            Assert.AreEqual(200, _score.Score);
+            Assert.AreEqual(7, _score.Score);
+        }
+
+        // BonusPerTile tests
+
+        [Test]
+        public void BonusPerTile_DefaultsToZero()
+        {
+            Assert.AreEqual(0, _score.BonusPerTile);
+        }
+
+        [Test]
+        public void BonusPerTile_AddsExtraPointPerTile()
+        {
+            _score.BonusPerTile = 1;
+            _score.IncrementChain();
+            _score.AddMatchScore(3); // 3 * (1+1) * 1 = 6
+            Assert.AreEqual(6, _score.Score);
+        }
+
+        [Test]
+        public void BonusPerTile_StacksWithChain()
+        {
+            _score.BonusPerTile = 1;
+
+            _score.IncrementChain(); // chain = 1
+            _score.AddMatchScore(3); // 3 * (1+1) * 1 = 6
+
+            _score.IncrementChain(); // chain = 2
+            _score.AddMatchScore(3); // 3 * (1+1) * 2 = 12
+
+            Assert.AreEqual(18, _score.Score); // 6 + 12
         }
     }
 }

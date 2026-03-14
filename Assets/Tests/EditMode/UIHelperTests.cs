@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using MatchThree.Core;
 
 namespace MatchThree.Tests
@@ -40,12 +41,12 @@ namespace MatchThree.Tests
         }
 
         [Test]
-        public void EnsureEventSystem_IncludesStandaloneInputModule()
+        public void EnsureEventSystem_IncludesInputSystemUIInputModule()
         {
             UIHelper.EnsureEventSystem();
 
             var es = Object.FindAnyObjectByType<EventSystem>();
-            Assert.IsNotNull(es.GetComponent<StandaloneInputModule>());
+            Assert.IsNotNull(es.GetComponent<InputSystemUIInputModule>());
         }
 
         [Test]
