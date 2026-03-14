@@ -33,6 +33,18 @@ namespace MatchThree.Board
         private Camera _mainCamera;
         private int _cascadeChance;
 
+        // Idle hint
+        private float _idleTime;
+        private Tile _hintTileA;
+        private Tile _hintTileB;
+        private const float HintDelay = 5f;
+
+        // Drag state
+        private Tile _dragTile;
+        private Tile _dragTargetTile;
+        private Vector3 _dragStartWorldPos;
+        private bool _isDragging;
+
         public ScoreManager ScoreManager => _scoreManager;
 
         private void Awake()
@@ -55,10 +67,28 @@ namespace MatchThree.Board
         {
             if (_isProcessing) return;
             if (GameManager.Instance != null && GameManager.Instance.State != GameState.Playing) return;
+            if (Mouse.current == null) return;
 
-            if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+            if (Mouse.current.leftButton.wasPressedThisFrame)
             {
-                HandleClick();
+                ClearHint();
+                _idleTime = 0f;
+                HandleDragStart();
+            }
+            else if (Mouse.current.leftButton.isPressed && _dragTile != null)
+            {
+                HandleDragUpdate();
+            }
+            else if (Mouse.current.leftButton.wasReleasedThisFrame && _dragTile != null)
+            {
+                HandleDragEnd();
+            }
+            else
+            {
+                // Idle hint
+                _idleTime += Time.deltaTime;
+                if (_idleTime >= HintDelay && _hintTileA == null)
+                    ShowHint();
             }
         }
 
@@ -111,7 +141,7 @@ namespace MatchThree.Board
             }
         }
 
-        private Tile SpawnTileAt(int row, int col, bool aboveBoard, bool allowCascade = false)
+        private Tile SpawnTileAt(int row, int col, bool aboveBoard, bool allowCascade = false, int spawnIndex = 0)
         {
             TileData data;
             if (allowCascade)
@@ -122,7 +152,7 @@ namespace MatchThree.Board
             Vector3 pos = GridToWorld(row, col);
             if (aboveBoard)
             {
-                pos.y = GridToWorld(_rows, col).y + col * 0.1f;
+                pos.y = GridToWorld(_rows, col).y + spawnIndex * _tileSize;
             }
 
             GameObject go = Instantiate(_tilePrefab, pos, Quaternion.identity, transform);
@@ -178,7 +208,7 @@ namespace MatchThree.Board
 
         #region Input
 
-        private void HandleClick()
+        private void HandleDragStart()
         {
             Vector2 worldPos = _mainCamera.ScreenToWorldPoint(Mouse.current.position.ReadValue());
             int col = Mathf.RoundToInt(worldPos.x / _tileSize);
@@ -189,6 +219,122 @@ namespace MatchThree.Board
             Tile clicked = _grid[row, col];
             if (clicked == null) return;
 
+            _dragTile = clicked;
+            _dragStartWorldPos = GridToWorld(row, col);
+            _dragTargetTile = null;
+            _isDragging = false;
+        }
+
+        private void HandleDragUpdate()
+        {
+            Vector2 worldPos = _mainCamera.ScreenToWorldPoint(Mouse.current.position.ReadValue());
+            Vector2 delta = worldPos - (Vector2)_dragStartWorldPos;
+
+            if (!_isDragging)
+            {
+                if (delta.magnitude < _tileSize * 0.15f) return;
+                _isDragging = true;
+
+                // Clear selection — we're dragging now
+                if (_selectedTile != null)
+                {
+                    _selectedTile.SetSelected(false);
+                    _selectedTile = null;
+                }
+
+                // Bring dragged tile to front
+                var pos = _dragTile.transform.position;
+                pos.z = -0.5f;
+                _dragTile.transform.position = pos;
+            }
+
+            // Lock to primary axis
+            float absX = Mathf.Abs(delta.x);
+            float absY = Mathf.Abs(delta.y);
+            int targetRow = _dragTile.Row;
+            int targetCol = _dragTile.Col;
+
+            if (absX > absY)
+            {
+                float clampedX = Mathf.Clamp(delta.x, -_tileSize, _tileSize);
+                _dragTile.transform.position = _dragStartWorldPos + new Vector3(clampedX, 0, -0.5f);
+                targetCol += delta.x > 0 ? 1 : -1;
+            }
+            else
+            {
+                float clampedY = Mathf.Clamp(delta.y, -_tileSize, _tileSize);
+                _dragTile.transform.position = _dragStartWorldPos + new Vector3(0, clampedY, -0.5f);
+                targetRow += delta.y > 0 ? 1 : -1;
+            }
+
+            // Reset old target if direction changed
+            if (_dragTargetTile != null)
+            {
+                Tile newTarget = (targetRow >= 0 && targetRow < _rows && targetCol >= 0 && targetCol < _cols)
+                    ? _grid[targetRow, targetCol] : null;
+                if (_dragTargetTile != newTarget)
+                {
+                    _dragTargetTile.transform.position = GridToWorld(_dragTargetTile.Row, _dragTargetTile.Col);
+                    _dragTargetTile = null;
+                }
+            }
+
+            // Slide target tile toward dragged tile's original position
+            if (targetRow >= 0 && targetRow < _rows && targetCol >= 0 && targetCol < _cols)
+            {
+                _dragTargetTile = _grid[targetRow, targetCol];
+                if (_dragTargetTile != null)
+                {
+                    float t = Mathf.Clamp01(Mathf.Max(absX, absY) / _tileSize);
+                    Vector3 targetOrigPos = GridToWorld(_dragTargetTile.Row, _dragTargetTile.Col);
+                    _dragTargetTile.transform.position = Vector3.Lerp(targetOrigPos, _dragStartWorldPos, t);
+                }
+            }
+        }
+
+        private void HandleDragEnd()
+        {
+            if (!_isDragging)
+            {
+                // Short click — use click-to-select fallback
+                HandleTileClick(_dragTile);
+                _dragTile = null;
+                return;
+            }
+
+            Vector2 worldPos = _mainCamera.ScreenToWorldPoint(Mouse.current.position.ReadValue());
+            Vector2 delta = worldPos - (Vector2)_dragStartWorldPos;
+            bool draggedFarEnough = Mathf.Max(Mathf.Abs(delta.x), Mathf.Abs(delta.y)) > _tileSize * 0.4f;
+
+            if (draggedFarEnough && _dragTargetTile != null)
+            {
+                // Snap to final positions
+                _dragTile.transform.position = GridToWorld(_dragTargetTile.Row, _dragTargetTile.Col);
+                _dragTargetTile.transform.position = _dragStartWorldPos;
+
+                if (_selectedTile != null)
+                {
+                    _selectedTile.SetSelected(false);
+                    _selectedTile = null;
+                }
+
+                StartCoroutine(TrySwapFromDrag(_dragTile, _dragTargetTile));
+            }
+            else
+            {
+                // Snap back
+                _dragTile.transform.position = _dragStartWorldPos;
+                if (_dragTargetTile != null)
+                    _dragTargetTile.transform.position = GridToWorld(_dragTargetTile.Row, _dragTargetTile.Col);
+            }
+
+            _dragTile = null;
+            _dragTargetTile = null;
+            _isDragging = false;
+        }
+
+        private void HandleTileClick(Tile clicked)
+        {
             if (_selectedTile == null)
             {
                 _selectedTile = clicked;
@@ -224,9 +370,40 @@ namespace MatchThree.Board
 
         #region Swap
 
+        private IEnumerator TrySwapFromDrag(Tile a, Tile b)
+        {
+            _isProcessing = true;
+            ClearHint();
+            _idleTime = 0f;
+
+            // Tiles are already visually swapped from drag
+            SwapInGrid(a, b);
+
+            if (MatchFinder.HasAnyMatch(_grid, _rows, _cols))
+            {
+                yield return StartCoroutine(ProcessMatches());
+            }
+            else
+            {
+                // Invalid swap — animate back
+                yield return StartCoroutine(AnimateSwap(a, b));
+                SwapInGrid(a, b);
+            }
+
+            if (!MatchFinder.HasAnyValidMove(_grid, _rows, _cols))
+            {
+                if (GameManager.Instance != null)
+                    GameManager.Instance.EndRound("Deadlocked!");
+            }
+
+            _isProcessing = false;
+        }
+
         private IEnumerator TrySwap(Tile a, Tile b)
         {
             _isProcessing = true;
+            ClearHint();
+            _idleTime = 0f;
 
             yield return StartCoroutine(AnimateSwap(a, b));
             SwapInGrid(a, b);
@@ -325,18 +502,14 @@ namespace MatchThree.Board
 
                 yield return new WaitForSeconds(_clearDelay);
 
-                // Collapse tiles down
-                yield return StartCoroutine(CollapseTiles());
-
-                // Refill empty spaces
-                yield return StartCoroutine(RefillBoard());
+                // Collapse and refill simultaneously
+                yield return StartCoroutine(CollapseAndRefill());
             }
         }
 
-        private IEnumerator CollapseTiles()
+        private IEnumerator CollapseAndRefill()
         {
-            bool moved = false;
-
+            // Step 1: Collapse grid positions (no animation yet)
             for (int c = 0; c < _cols; c++)
             {
                 int writeRow = 0;
@@ -349,40 +522,29 @@ namespace MatchThree.Board
                             _grid[writeRow, c] = _grid[r, c];
                             _grid[r, c] = null;
                             _grid[writeRow, c].Row = writeRow;
-                            moved = true;
                         }
                         writeRow++;
                     }
                 }
             }
 
-            if (moved)
-            {
-                yield return StartCoroutine(AnimateAllToPosition());
-            }
-        }
-
-        private IEnumerator RefillBoard()
-        {
-            var newTiles = new List<Tile>();
-
+            // Step 2: Spawn new tiles above the board
             for (int c = 0; c < _cols; c++)
             {
+                int spawnIndex = 0;
                 for (int r = 0; r < _rows; r++)
                 {
                     if (_grid[r, c] == null)
                     {
                         bool allowCascade = _cascadeChance > 0 && Random.Range(0, 100) < _cascadeChance;
-                        Tile tile = SpawnTileAt(r, c, true, allowCascade);
-                        newTiles.Add(tile);
+                        SpawnTileAt(r, c, true, allowCascade, spawnIndex);
+                        spawnIndex++;
                     }
                 }
             }
 
-            if (newTiles.Count > 0)
-            {
-                yield return StartCoroutine(AnimateAllToPosition());
-            }
+            // Step 3: Animate everything to position at once
+            yield return StartCoroutine(AnimateAllToPosition());
         }
 
         private IEnumerator AnimateAllToPosition()
@@ -434,6 +596,27 @@ namespace MatchThree.Board
         #endregion
 
         #region Helpers
+
+        private void ShowHint()
+        {
+            var move = MatchFinder.FindFirstValidMove(_grid, _rows, _cols);
+            if (move == null) return;
+
+            var (r1, c1, r2, c2) = move.Value;
+            _hintTileA = _grid[r1, c1];
+            _hintTileB = _grid[r2, c2];
+
+            if (_hintTileA != null) _hintTileA.SetHinted(true);
+            if (_hintTileB != null) _hintTileB.SetHinted(true);
+        }
+
+        private void ClearHint()
+        {
+            if (_hintTileA != null) _hintTileA.SetHinted(false);
+            if (_hintTileB != null) _hintTileB.SetHinted(false);
+            _hintTileA = null;
+            _hintTileB = null;
+        }
 
         private Vector3 GridToWorld(int row, int col)
         {

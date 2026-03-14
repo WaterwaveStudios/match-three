@@ -332,5 +332,65 @@ namespace MatchThree.Tests
                 for (int c = 0; c < 3; c++)
                     Assert.AreEqual(original[r, c], grid[r, c].Type);
         }
+
+        // FindFirstValidMove tests
+
+        [Test]
+        public void FindFirstValidMove_ReturnsMovePair()
+        {
+            // Swapping (0,2)S with (1,2)C completes row 0: C,C,C
+            var layout = new TileType[,]
+            {
+                { TileType.Circle, TileType.Circle, TileType.Square },
+                { TileType.Circle, TileType.Square, TileType.Circle },
+                { TileType.Square, TileType.Circle, TileType.Square },
+            };
+
+            var grid = BuildGrid(layout);
+            var move = MatchFinder.FindFirstValidMove(grid, 3, 3);
+
+            Assert.IsNotNull(move);
+            var (r1, c1, r2, c2) = move.Value;
+            // Verify it's a real adjacent swap
+            Assert.AreEqual(1, Mathf.Abs(r1 - r2) + Mathf.Abs(c1 - c2));
+        }
+
+        [Test]
+        public void FindFirstValidMove_ReturnsNullWhenDeadlocked()
+        {
+            var layout = new TileType[,]
+            {
+                { TileType.Circle,  TileType.Square,  TileType.Diamond, TileType.Circle  },
+                { TileType.Square,  TileType.Diamond, TileType.Circle,  TileType.Square  },
+                { TileType.Diamond, TileType.Circle,  TileType.Square,  TileType.Diamond },
+                { TileType.Circle,  TileType.Square,  TileType.Diamond, TileType.Circle  },
+            };
+
+            var grid = BuildGrid(layout);
+            Assert.IsNull(MatchFinder.FindFirstValidMove(grid, 4, 4));
+        }
+
+        [Test]
+        public void FindFirstValidMove_ReturnedSwapProducesMatch()
+        {
+            var layout = new TileType[,]
+            {
+                { TileType.Circle, TileType.Circle, TileType.Square },
+                { TileType.Circle, TileType.Square, TileType.Circle },
+                { TileType.Square, TileType.Circle, TileType.Square },
+            };
+
+            var grid = BuildGrid(layout);
+            var move = MatchFinder.FindFirstValidMove(grid, 3, 3);
+            Assert.IsNotNull(move);
+
+            // Perform the swap and verify it creates a match
+            var (r1, c1, r2, c2) = move.Value;
+            var temp = grid[r1, c1];
+            grid[r1, c1] = grid[r2, c2];
+            grid[r2, c2] = temp;
+
+            Assert.IsTrue(MatchFinder.HasAnyMatch(grid, 3, 3));
+        }
     }
 }

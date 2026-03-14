@@ -329,5 +329,122 @@ namespace MatchThree.Tests
             _upgrades.Load(); // no saved data, should clear
             Assert.AreEqual(0, _upgrades.GetLevel("score_boost"));
         }
+
+        // Second ring nodes
+
+        [Test]
+        public void SecondRingNodes_ExistInTree()
+        {
+            Assert.IsNotNull(_upgrades.GetNode("quick_swap"));
+            Assert.IsNotNull(_upgrades.GetNode("wild_tile"));
+            Assert.IsNotNull(_upgrades.GetNode("bigger_match"));
+            Assert.IsNotNull(_upgrades.GetNode("wider_match"));
+            Assert.IsNotNull(_upgrades.GetNode("chain_bonus"));
+            Assert.IsNotNull(_upgrades.GetNode("combo_frenzy"));
+            Assert.IsNotNull(_upgrades.GetNode("score_rush"));
+        }
+
+        [Test]
+        public void SecondRing_VisibleWhenParentPurchased()
+        {
+            _wallet.AddFunds(10000);
+            Assert.IsFalse(_upgrades.IsVisible("quick_swap"));
+
+            _upgrades.Purchase("score_boost", _wallet);
+            _upgrades.Purchase("longer_round", _wallet);
+            Assert.IsTrue(_upgrades.IsVisible("quick_swap"));
+        }
+
+        [Test]
+        public void SecondRing_CascadeChildren_VisibleWhenCascadeChancePurchased()
+        {
+            _wallet.AddFunds(10000);
+            _upgrades.Purchase("score_boost", _wallet);
+            Assert.IsFalse(_upgrades.IsVisible("chain_bonus"));
+
+            _upgrades.Purchase("cascade_chance", _wallet);
+            Assert.IsTrue(_upgrades.IsVisible("chain_bonus"));
+            Assert.IsTrue(_upgrades.IsVisible("combo_frenzy"));
+            Assert.IsTrue(_upgrades.IsVisible("score_rush"));
+        }
+
+        // Legendary nodes
+
+        [Test]
+        public void LegendaryNodes_ExistInTree()
+        {
+            Assert.IsNotNull(_upgrades.GetNode("time_warp"));
+            Assert.IsNotNull(_upgrades.GetNode("tile_storm"));
+            Assert.IsTrue(_upgrades.GetNode("time_warp").IsLegendary);
+            Assert.IsTrue(_upgrades.GetNode("tile_storm").IsLegendary);
+        }
+
+        [Test]
+        public void Legendary_VisibleWhenEitherNeighbourPurchased()
+        {
+            _wallet.AddFunds(10000);
+            Assert.IsFalse(_upgrades.IsVisible("time_warp"));
+
+            // Purchase path to combo_frenzy
+            _upgrades.Purchase("score_boost", _wallet);
+            _upgrades.Purchase("cascade_chance", _wallet);
+            _upgrades.Purchase("combo_frenzy", _wallet);
+
+            // Visible with just one neighbour
+            Assert.IsTrue(_upgrades.IsVisible("time_warp"));
+        }
+
+        [Test]
+        public void Legendary_CannotPurchaseWithOnlyOneNeighbour()
+        {
+            _wallet.AddFunds(10000);
+            _upgrades.Purchase("score_boost", _wallet);
+            _upgrades.Purchase("cascade_chance", _wallet);
+            _upgrades.Purchase("combo_frenzy", _wallet);
+
+            // Visible but can't purchase — needs score_rush too
+            Assert.IsTrue(_upgrades.IsVisible("time_warp"));
+            Assert.IsFalse(_upgrades.CanPurchase("time_warp"));
+            Assert.IsFalse(_upgrades.Purchase("time_warp", _wallet));
+        }
+
+        [Test]
+        public void Legendary_CanPurchaseWithBothNeighbours()
+        {
+            _wallet.AddFunds(10000);
+            _upgrades.Purchase("score_boost", _wallet);
+            _upgrades.Purchase("cascade_chance", _wallet);
+            _upgrades.Purchase("combo_frenzy", _wallet);
+            _upgrades.Purchase("score_rush", _wallet);
+
+            Assert.IsTrue(_upgrades.CanPurchase("time_warp"));
+            Assert.IsTrue(_upgrades.Purchase("time_warp", _wallet));
+            Assert.AreEqual(1, _upgrades.GetLevel("time_warp"));
+        }
+
+        [Test]
+        public void Legendary_HasChallengeText()
+        {
+            var timeWarp = _upgrades.GetNode("time_warp");
+            Assert.IsNotNull(timeWarp.Challenge);
+            Assert.IsTrue(timeWarp.Challenge.Length > 0);
+        }
+
+        // CanPurchase
+
+        [Test]
+        public void CanPurchase_FalseForUnknownNode()
+        {
+            Assert.IsFalse(_upgrades.CanPurchase("nonexistent"));
+        }
+
+        [Test]
+        public void CanPurchase_FalseWhenMaxed()
+        {
+            _wallet.AddFunds(10000);
+            for (int i = 0; i < 3; i++)
+                _upgrades.Purchase("score_boost", _wallet);
+            Assert.IsFalse(_upgrades.CanPurchase("score_boost"));
+        }
     }
 }

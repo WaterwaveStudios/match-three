@@ -78,6 +78,11 @@ namespace MatchThree.Matching
 
         public static bool HasAnyValidMove(Tile[,] grid, int rows, int cols)
         {
+            return FindFirstValidMove(grid, rows, cols) != null;
+        }
+
+        public static (int r1, int c1, int r2, int c2)? FindFirstValidMove(Tile[,] grid, int rows, int cols)
+        {
             for (int r = 0; r < rows; r++)
             {
                 for (int c = 0; c < cols; c++)
@@ -90,7 +95,7 @@ namespace MatchThree.Matching
                         SwapCells(grid, r, c, r, c + 1);
                         bool hasMatch = HasAnyMatch(grid, rows, cols);
                         SwapCells(grid, r, c, r, c + 1);
-                        if (hasMatch) return true;
+                        if (hasMatch) return (r, c, r, c + 1);
                     }
 
                     // Try swap up
@@ -99,11 +104,11 @@ namespace MatchThree.Matching
                         SwapCells(grid, r, c, r + 1, c);
                         bool hasMatch = HasAnyMatch(grid, rows, cols);
                         SwapCells(grid, r, c, r + 1, c);
-                        if (hasMatch) return true;
+                        if (hasMatch) return (r, c, r + 1, c);
                     }
                 }
             }
-            return false;
+            return null;
         }
 
         private static void SwapCells(Tile[,] grid, int r1, int c1, int r2, int c2)

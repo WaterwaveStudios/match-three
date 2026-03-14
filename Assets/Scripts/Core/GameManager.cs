@@ -43,17 +43,36 @@ namespace MatchThree.Core
         private RectTransform _shopCanvasRect;
         private bool _tooltipActive;
 
+        // Zoom state
+        private RectTransform _mapContainer;
+        private float _zoomLevel = 1f;
+        private const float MinZoom = 0.4f;
+        private const float MaxZoom = 1.5f;
+
         public WalletManager Wallet => _wallet;
         public UpgradeManager Upgrades => _upgradeManager;
 
-        // Node positions for the upgrade tree UI
+        // Spatial node positions for the upgrade graph
         private static readonly Dictionary<string, Vector2> NodePositions = new Dictionary<string, Vector2>
         {
-            { "score_boost",    new Vector2(0, 60) },
-            { "extra_row",     new Vector2(-195, -70) },
-            { "extra_col",     new Vector2(-65, -70) },
-            { "longer_round",  new Vector2(65, -70) },
-            { "cascade_chance", new Vector2(195, -70) },
+            // Root
+            { "score_boost",    new Vector2(0, 0) },
+            // First ring
+            { "extra_row",      new Vector2(160, 0) },
+            { "extra_col",      new Vector2(-160, 0) },
+            { "longer_round",   new Vector2(0, 140) },
+            { "cascade_chance", new Vector2(0, -140) },
+            // Second ring
+            { "quick_swap",     new Vector2(0, 280) },
+            { "wild_tile",      new Vector2(320, 60) },
+            { "bigger_match",   new Vector2(240, -140) },
+            { "wider_match",    new Vector2(-320, 60) },
+            { "chain_bonus",    new Vector2(-130, -280) },
+            { "combo_frenzy",   new Vector2(0, -280) },
+            { "score_rush",     new Vector2(130, -280) },
+            // Legendary
+            { "time_warp",      new Vector2(65, -400) },
+            { "tile_storm",     new Vector2(320, -60) },
         };
 
         public void Init(GameObject tilePrefab, TileData[] tileDataSet)
@@ -97,12 +116,37 @@ namespace MatchThree.Core
                 UpdateTimerDisplay();
             }
 
-            if (State == GameState.Shop && _tooltipActive && _tooltipRect != null && _shopCanvasRect != null)
+            if (State == GameState.Shop)
             {
-                Vector2 localPoint;
-                RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                    _shopCanvasRect, Mouse.current.position.ReadValue(), null, out localPoint);
-                _tooltipRect.anchoredPosition = localPoint + new Vector2(0, 50);
+                // Tooltip follows cursor
+                if (_tooltipActive && _tooltipRect != null && _shopCanvasRect != null && Mouse.current != null)
+                {
+                    Vector2 localPoint;
+                    RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                        _shopCanvasRect, Mouse.current.position.ReadValue(), null, out localPoint);
+                    _tooltipRect.anchoredPosition = localPoint + new Vector2(0, 50);
+                }
+
+                if (Mouse.current != null && _mapContainer != null)
+                {
+                    // Scroll to zoom
+                    float scroll = Mouse.current.scroll.ReadValue().y;
+                    if (scroll != 0)
+                    {
+                        _zoomLevel = Mathf.Clamp(_zoomLevel + scroll * 0.01f, MinZoom, MaxZoom);
+                        _mapContainer.localScale = Vector3.one * _zoomLevel;
+                    }
+
+                    // Left click drag to pan
+                    if (Mouse.current.leftButton.isPressed)
+                    {
+                        Vector2 delta = Mouse.current.delta.ReadValue();
+                        if (delta.sqrMagnitude > 0)
+                        {
+                            _mapContainer.anchoredPosition += delta;
+                        }
+                    }
+                }
             }
         }
 
@@ -150,6 +194,7 @@ namespace MatchThree.Core
             State = GameState.Shop;
             HideRoundEnd();
             DestroyBoard();
+            _zoomLevel = 1f;
             CreateShopUI();
         }
 
@@ -198,7 +243,7 @@ namespace MatchThree.Core
             bgRect.sizeDelta = Vector2.zero;
 
             // Title
-            var title = UIHelper.CreateText(canvas.transform, "Match Three", 72, Color.white);
+            var title = UIHelper.CreateText(canvas.transform, "Deadlocked", 72, Color.white);
             UIHelper.SetRect(title.GetComponent<RectTransform>(),
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0, 120), new Vector2(600, 100));
@@ -300,7 +345,6 @@ namespace MatchThree.Core
 
             _timerText.text = FormatTime(_roundTimer.TimeRemaining);
 
-            // Turn red when low
             if (_roundTimer.TimeRemaining <= 5f)
                 _timerText.color = new Color(1f, 0.3f, 0.3f);
             else
@@ -333,33 +377,28 @@ namespace MatchThree.Core
             overlayRect.anchorMax = Vector2.one;
             overlayRect.sizeDelta = Vector2.zero;
 
-            // Round end title
             string titleText = reason ?? "Round Complete!";
             var title = UIHelper.CreateText(canvas.transform, titleText, 56, Color.white);
             UIHelper.SetRect(title.GetComponent<RectTransform>(),
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0, 130), new Vector2(500, 80));
 
-            // Round score
             var scoreColour = new Color(1f, 0.85f, 0.3f);
             var roundScoreText = UIHelper.CreateText(canvas.transform, $"Round Score: {roundScore}", 42, scoreColour);
             UIHelper.SetRect(roundScoreText.GetComponent<RectTransform>(),
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0, 50), new Vector2(500, 60));
 
-            // Wallet total
             var walletText = UIHelper.CreateText(canvas.transform, $"Wallet: {_wallet.Balance}", 36, new Color(0.6f, 0.9f, 0.6f));
             UIHelper.SetRect(walletText.GetComponent<RectTransform>(),
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0, -10), new Vector2(500, 50));
 
-            // Continue to shop button
             var shopBtn = UIHelper.CreateButton(canvas.transform, "Shop", 32, ShowShop);
             UIHelper.SetRect(shopBtn.GetComponent<RectTransform>(),
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 new Vector2(0, -80), new Vector2(240, 55));
 
-            // Main menu button
             var menuBtn = UIHelper.CreateButton(canvas.transform, "Main Menu", 24, ShowMenu);
             UIHelper.SetRect(menuBtn.GetComponent<RectTransform>(),
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
@@ -395,27 +434,40 @@ namespace MatchThree.Core
             bgRect.anchorMax = Vector2.one;
             bgRect.sizeDelta = Vector2.zero;
 
-            // Shop title
-            var title = UIHelper.CreateText(canvas.transform, "Upgrades", 56, Color.white);
+            // Fixed header: title
+            var title = UIHelper.CreateText(canvas.transform, "Upgrades", 48, Color.white);
             UIHelper.SetRect(title.GetComponent<RectTransform>(),
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0, 220), new Vector2(400, 80));
+                new Vector2(0.5f, 1), new Vector2(0.5f, 1),
+                new Vector2(0, -20), new Vector2(400, 60));
 
-            // Wallet display
+            // Fixed header: wallet
             var walletColour = new Color(1f, 0.85f, 0.3f);
-            var walletText = UIHelper.CreateText(canvas.transform, $"Wallet: {_wallet.Balance}", 36, walletColour);
+            var walletText = UIHelper.CreateText(canvas.transform, $"Wallet: {_wallet.Balance}", 28, walletColour);
             UIHelper.SetRect(walletText.GetComponent<RectTransform>(),
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0, 150), new Vector2(400, 50));
+                new Vector2(0.5f, 1), new Vector2(0.5f, 1),
+                new Vector2(0, -70), new Vector2(400, 40));
 
-            // Draw connecting lines first (behind nodes)
+            // Zoomable map container (centered on screen)
+            var container = new GameObject("MapContainer");
+            container.transform.SetParent(canvas.transform, false);
+            _mapContainer = container.AddComponent<RectTransform>();
+            _mapContainer.anchorMin = new Vector2(0.5f, 0.5f);
+            _mapContainer.anchorMax = new Vector2(0.5f, 0.5f);
+            _mapContainer.sizeDelta = Vector2.zero;
+            _mapContainer.anchoredPosition = new Vector2(0, 20);
+            _mapContainer.localScale = Vector3.one * _zoomLevel;
+
+            // Draw connecting lines (behind nodes)
             foreach (var node in UpgradeManager.Tree)
             {
-                if (node.ParentId != null && _upgradeManager.IsVisible(node.Id))
+                if (!_upgradeManager.IsVisible(node.Id)) continue;
+                if (node.ParentId != null && NodePositions.ContainsKey(node.ParentId))
                 {
-                    var parentPos = NodePositions[node.ParentId];
-                    var childPos = NodePositions[node.Id];
-                    CreateTreeLine(canvas.transform, parentPos, childPos);
+                    CreateTreeLine(_mapContainer, NodePositions[node.ParentId], NodePositions[node.Id]);
+                }
+                if (node.RequiredNeighbourId != null && NodePositions.ContainsKey(node.RequiredNeighbourId))
+                {
+                    CreateTreeLine(_mapContainer, NodePositions[node.RequiredNeighbourId], NodePositions[node.Id]);
                 }
             }
 
@@ -424,99 +476,90 @@ namespace MatchThree.Core
             {
                 if (_upgradeManager.IsVisible(node.Id))
                 {
-                    CreateUpgradeNode(canvas.transform, node);
+                    CreateUpgradeNode(_mapContainer, node);
                 }
             }
 
-            // Create tooltip (on top of everything, starts hidden)
+            // Tooltip (fixed, on canvas not container — doesn't zoom)
             CreateTooltip(canvas.transform);
 
-            // Continue button (starts next round)
+            // Fixed footer: buttons
             var continueBtn = UIHelper.CreateButton(canvas.transform, "Next Round", 32, StartRound);
             UIHelper.SetRect(continueBtn.GetComponent<RectTransform>(),
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0, -180), new Vector2(240, 55));
+                new Vector2(0.5f, 0), new Vector2(0.5f, 0),
+                new Vector2(0, 80), new Vector2(240, 55));
 
-            // Main menu button
             var menuBtn = UIHelper.CreateButton(canvas.transform, "Main Menu", 24, ShowMenu);
             UIHelper.SetRect(menuBtn.GetComponent<RectTransform>(),
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0, -250), new Vector2(200, 45));
+                new Vector2(0.5f, 0), new Vector2(0.5f, 0),
+                new Vector2(0, 20), new Vector2(200, 45));
         }
 
-        private void CreateUpgradeNode(Transform parent, UpgradeNode node)
+        private void CreateUpgradeNode(RectTransform parent, UpgradeNode node)
         {
             var pos = NodePositions[node.Id];
             int level = _upgradeManager.GetLevel(node.Id);
             bool maxed = _upgradeManager.IsMaxed(node.Id);
             int cost = _upgradeManager.GetCost(node.Id);
+            bool canPurchase = _upgradeManager.CanPurchase(node.Id);
             bool canAfford = cost > 0 && _wallet.CanAfford(cost);
 
-            // Node button
-            string label = maxed
-                ? $"{node.Name}\nMAX"
-                : level > 0
-                    ? $"{node.Name}\nLv {level}/{node.MaxLevel}"
-                    : node.Name;
+            // Build label
+            string label;
+            if (node.IsLegendary && !canPurchase && level == 0)
+                label = $"{node.Name}\n???";
+            else if (maxed)
+                label = $"{node.Name}\nMAX";
+            else if (level > 0)
+                label = $"{node.Name}\nLv {level}/{node.MaxLevel}";
+            else
+                label = node.Name;
 
-            var btn = UIHelper.CreateButton(parent, label, 18, () =>
+            var btn = UIHelper.CreateButton(parent, label, 16, () =>
             {
                 if (_upgradeManager.Purchase(node.Id, _wallet))
                 {
                     _upgradeManager.Save();
                     _wallet.Save();
                     _tooltipActive = false;
+                    float savedZoom = _zoomLevel;
                     HideShop();
+                    _zoomLevel = savedZoom;
                     CreateShopUI();
                 }
             });
 
+            var nodeSize = node.IsLegendary ? new Vector2(150, 55) : new Vector2(130, 50);
             UIHelper.SetRect(btn.GetComponent<RectTransform>(),
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                pos, new Vector2(140, 55));
+                pos, nodeSize);
 
             // Color by state
             var btnImage = btn.GetComponent<Image>();
+            Color nodeColor;
             if (maxed)
-            {
-                btnImage.color = new Color(0.5f, 0.4f, 0.15f); // gold
-            }
+                nodeColor = new Color(0.5f, 0.4f, 0.15f); // gold
+            else if (node.IsLegendary && !canPurchase)
+                nodeColor = new Color(0.3f, 0.15f, 0.35f); // purple (locked legendary)
             else if (level > 0)
-            {
-                btnImage.color = new Color(0.2f, 0.45f, 0.2f); // green
-            }
-            else if (canAfford)
-            {
-                btnImage.color = new Color(0.2f, 0.3f, 0.5f); // blue
-            }
+                nodeColor = new Color(0.2f, 0.45f, 0.2f); // green
+            else if (canPurchase && canAfford)
+                nodeColor = new Color(0.2f, 0.3f, 0.5f); // blue
             else
+                nodeColor = new Color(0.25f, 0.25f, 0.3f); // dark
+            btnImage.color = nodeColor;
+
+            if (!canPurchase || !canAfford || maxed)
             {
-                btnImage.color = new Color(0.25f, 0.25f, 0.3f); // dark
+                btn.interactable = false;
+                var colours = btn.colors;
+                colours.disabledColor = nodeColor;
+                btn.colors = colours;
             }
 
-            if (maxed || !canAfford)
-            {
-                btn.interactable = maxed ? false : false;
-                if (!maxed && !canAfford)
-                {
-                    btn.interactable = false;
-                    var colours = btn.colors;
-                    colours.disabledColor = new Color(0.25f, 0.25f, 0.3f);
-                    btn.colors = colours;
-                }
-                if (maxed)
-                {
-                    btn.interactable = false;
-                    var colours = btn.colors;
-                    colours.disabledColor = new Color(0.5f, 0.4f, 0.15f);
-                    btn.colors = colours;
-                }
-            }
-
-            // Hover tooltip via EventTrigger
+            // Hover tooltip
             var trigger = btn.gameObject.AddComponent<EventTrigger>();
-
-            string tooltipContent = BuildTooltipText(node, level, maxed, cost);
+            string tooltipContent = BuildTooltipText(node, level, maxed, cost, canPurchase);
 
             var enterEntry = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
             enterEntry.callback.AddListener((_) => ShowTooltip(tooltipContent));
@@ -527,7 +570,7 @@ namespace MatchThree.Core
             trigger.triggers.Add(exitEntry);
         }
 
-        private string BuildTooltipText(UpgradeNode node, int level, bool maxed, int cost)
+        private string BuildTooltipText(UpgradeNode node, int level, bool maxed, int cost, bool canPurchase)
         {
             string text = $"{node.Name}\n{node.Description}\n";
 
@@ -537,6 +580,9 @@ namespace MatchThree.Core
                 text += $"Level: {level}/{node.MaxLevel}\nNext: {cost} pts";
             else
                 text += $"Cost: {cost} pts";
+
+            if (node.IsLegendary && !canPurchase && level == 0)
+                text += $"\n\nChallenge: {node.Challenge}";
 
             return text;
         }
@@ -553,10 +599,10 @@ namespace MatchThree.Core
             _tooltipRect = bgImage.GetComponent<RectTransform>();
             _tooltipRect.anchorMin = new Vector2(0.5f, 0.5f);
             _tooltipRect.anchorMax = new Vector2(0.5f, 0.5f);
-            _tooltipRect.sizeDelta = new Vector2(220, 90);
+            _tooltipRect.sizeDelta = new Vector2(240, 90);
             _tooltipRect.pivot = new Vector2(0.5f, 0);
 
-            _tooltipText = UIHelper.CreateText(_tooltipRoot.transform, "", 16, Color.white);
+            _tooltipText = UIHelper.CreateText(_tooltipRoot.transform, "", 14, Color.white);
             _tooltipText.alignment = TextAnchor.MiddleCenter;
             var textRect = _tooltipText.GetComponent<RectTransform>();
             textRect.anchorMin = Vector2.zero;
@@ -573,9 +619,8 @@ namespace MatchThree.Core
             if (_tooltipRoot == null) return;
             _tooltipText.text = text;
 
-            // Size tooltip to content
             int lineCount = text.Split('\n').Length;
-            _tooltipRect.sizeDelta = new Vector2(220, 20 + lineCount * 20);
+            _tooltipRect.sizeDelta = new Vector2(240, 16 + lineCount * 18);
 
             _tooltipRoot.SetActive(true);
             _tooltipActive = true;
@@ -588,7 +633,7 @@ namespace MatchThree.Core
             _tooltipActive = false;
         }
 
-        private void CreateTreeLine(Transform parent, Vector2 from, Vector2 to)
+        private void CreateTreeLine(RectTransform parent, Vector2 from, Vector2 to)
         {
             var line = new GameObject("TreeLine");
             line.transform.SetParent(parent, false);
@@ -620,6 +665,7 @@ namespace MatchThree.Core
                 _tooltipText = null;
                 _tooltipRect = null;
                 _shopCanvasRect = null;
+                _mapContainer = null;
                 _tooltipActive = false;
             }
         }
@@ -636,7 +682,6 @@ namespace MatchThree.Core
                 field.SetValue(target, value);
         }
 
-        // Called by board via ScoreManager event
         internal void SubscribeToBoard(GameBoard board)
         {
             board.ScoreManager.BonusPerTile = _upgradeManager.BonusPerTile;
