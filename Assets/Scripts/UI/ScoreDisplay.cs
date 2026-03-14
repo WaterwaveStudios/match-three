@@ -1,5 +1,5 @@
 using UnityEngine;
-using TMPro;
+using UnityEngine.UI;
 using MatchThree.Board;
 
 namespace MatchThree.UI
@@ -7,7 +7,7 @@ namespace MatchThree.UI
     public class ScoreDisplay : MonoBehaviour
     {
         [SerializeField] private GameBoard _board;
-        [SerializeField] private TextMeshProUGUI _scoreText;
+        [SerializeField] private Text _scoreText;
 
         private void Start()
         {

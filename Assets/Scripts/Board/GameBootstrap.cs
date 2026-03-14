@@ -1,6 +1,5 @@
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
 using MatchThree.Tiles;
 
 namespace MatchThree.Board
@@ -10,34 +9,61 @@ namespace MatchThree.Board
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Bootstrap()
         {
-            // Create tile prefab
-            var prefabGo = new GameObject("TilePrefab");
-            prefabGo.SetActive(false);
-            prefabGo.AddComponent<SpriteRenderer>();
-            prefabGo.AddComponent<Tile>();
+            Debug.Log("[MatchThree] Bootstrap starting...");
 
-            // Generate tile data for each type
-            var tileDataSet = new TileData[5];
+            try
+            {
+                // Create tile prefab
+                var prefabGo = new GameObject("TilePrefab");
+                prefabGo.SetActive(false);
+                prefabGo.AddComponent<SpriteRenderer>();
+                prefabGo.AddComponent<Tile>();
 
-            tileDataSet[0] = CreateTileData(TileType.Circle, new Color(0.9f, 0.25f, 0.3f), SpriteGenerator.CreateCircle());     // Red
-            tileDataSet[1] = CreateTileData(TileType.Square, new Color(0.2f, 0.6f, 0.95f), SpriteGenerator.CreateSquare());     // Blue
-            tileDataSet[2] = CreateTileData(TileType.Diamond, new Color(0.2f, 0.85f, 0.4f), SpriteGenerator.CreateDiamond());   // Green
-            tileDataSet[3] = CreateTileData(TileType.Triangle, new Color(0.95f, 0.8f, 0.15f), SpriteGenerator.CreateTriangle()); // Yellow
-            tileDataSet[4] = CreateTileData(TileType.Hexagon, new Color(0.7f, 0.3f, 0.9f), SpriteGenerator.CreateHexagon());    // Purple
+                // Generate tile data for each type
+                var tileDataSet = new TileData[5];
+                tileDataSet[0] = CreateTileData(TileType.Circle, new Color(0.9f, 0.25f, 0.3f), SpriteGenerator.CreateCircle());
+                tileDataSet[1] = CreateTileData(TileType.Square, new Color(0.2f, 0.6f, 0.95f), SpriteGenerator.CreateSquare());
+                tileDataSet[2] = CreateTileData(TileType.Diamond, new Color(0.2f, 0.85f, 0.4f), SpriteGenerator.CreateDiamond());
+                tileDataSet[3] = CreateTileData(TileType.Triangle, new Color(0.95f, 0.8f, 0.15f), SpriteGenerator.CreateTriangle());
+                tileDataSet[4] = CreateTileData(TileType.Hexagon, new Color(0.7f, 0.3f, 0.9f), SpriteGenerator.CreateHexagon());
 
-            // Create board
-            var boardGo = new GameObject("GameBoard");
-            var board = boardGo.AddComponent<GameBoard>();
+                Debug.Log("[MatchThree] Tile data created");
 
-            // Use reflection to set serialized fields since we're doing runtime setup
-            SetPrivateField(board, "_tilePrefab", prefabGo);
-            SetPrivateField(board, "_tileDataSet", tileDataSet);
+                // Create board
+                var boardGo = new GameObject("GameBoard");
+                var board = boardGo.AddComponent<GameBoard>();
 
-            // Set up camera background
-            Camera.main.backgroundColor = new Color(0.12f, 0.12f, 0.18f);
+                SetPrivateField(board, "_tilePrefab", prefabGo);
+                SetPrivateField(board, "_tileDataSet", tileDataSet);
 
-            // Create UI
-            CreateScoreUI(board);
+                // Set up camera background
+                var cam = Camera.main;
+                if (cam != null)
+                {
+                    cam.backgroundColor = new Color(0.12f, 0.12f, 0.18f);
+                }
+                else
+                {
+                    Debug.LogWarning("[MatchThree] No MainCamera found — creating one");
+                    var camGo = new GameObject("Main Camera");
+                    camGo.tag = "MainCamera";
+                    cam = camGo.AddComponent<Camera>();
+                    cam.orthographic = true;
+                    cam.orthographicSize = 6f;
+                    cam.backgroundColor = new Color(0.12f, 0.12f, 0.18f);
+                    cam.clearFlags = CameraClearFlags.SolidColor;
+                    cam.transform.position = new Vector3(0, 0, -10f);
+                }
+
+                // Create UI
+                CreateScoreUI(board);
+
+                Debug.Log("[MatchThree] Bootstrap complete");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[MatchThree] Bootstrap failed: {e}");
+            }
         }
 
         private static TileData CreateTileData(TileType type, Color colour, Sprite sprite)
@@ -58,15 +84,16 @@ namespace MatchThree.Board
             canvasGo.AddComponent<CanvasScaler>();
             canvasGo.AddComponent<GraphicRaycaster>();
 
-            // Score text
+            // Score text — using Unity UI Text to avoid TMP essential resources dependency
             var textGo = new GameObject("ScoreText");
             textGo.transform.SetParent(canvasGo.transform, false);
 
-            var text = textGo.AddComponent<TextMeshProUGUI>();
+            var text = textGo.AddComponent<Text>();
             text.text = "Score: 0";
-            text.fontSize = 36;
+            text.fontSize = 32;
             text.color = Color.white;
-            text.alignment = TextAlignmentOptions.TopLeft;
+            text.alignment = TextAnchor.UpperLeft;
+            text.font = Font.CreateDynamicFontFromOSFont("Arial", 32);
 
             var rect = text.GetComponent<RectTransform>();
             rect.anchorMin = new Vector2(0, 1);
@@ -88,7 +115,7 @@ namespace MatchThree.Board
             if (field != null)
                 field.SetValue(target, value);
             else
-                Debug.LogError($"Could not find field {fieldName} on {target.GetType().Name}");
+                Debug.LogError($"[MatchThree] Could not find field {fieldName} on {target.GetType().Name}");
         }
     }
 }

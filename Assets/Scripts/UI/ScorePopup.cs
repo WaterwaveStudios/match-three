@@ -1,11 +1,10 @@
 using UnityEngine;
-using TMPro;
 
 namespace MatchThree.UI
 {
     public class ScorePopup : MonoBehaviour
     {
-        private TextMeshPro _text;
+        private TextMesh _text;
         private float _lifetime;
         private float _elapsed;
         private Vector3 _startPos;
@@ -18,12 +17,18 @@ namespace MatchThree.UI
             _lifetime = duration;
             _startPos = transform.position;
 
-            _text = gameObject.AddComponent<TextMeshPro>();
+            _text = gameObject.AddComponent<TextMesh>();
             _text.text = $"+{points}";
-            _text.fontSize = points >= 300 ? 8f : points >= 150 ? 6f : 4.5f;
+            _text.characterSize = points >= 300 ? 0.15f : points >= 150 ? 0.12f : 0.1f;
+            _text.fontSize = 64;
             _text.color = Color.white;
-            _text.alignment = TextAlignmentOptions.Center;
-            _text.sortingOrder = 100;
+            _text.anchor = TextAnchor.MiddleCenter;
+            _text.alignment = TextAlignment.Center;
+
+            // Ensure it renders on top of tiles
+            var mr = GetComponent<MeshRenderer>();
+            if (mr != null)
+                mr.sortingOrder = 100;
 
             _startColour = _text.color;
         }
